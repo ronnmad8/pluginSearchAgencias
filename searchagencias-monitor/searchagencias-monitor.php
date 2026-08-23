@@ -3,7 +3,7 @@
  * Plugin Name: SearchAgencias Monitor
  * Plugin URI: https://renekay.com
  * Description: Keepalive de SearchAgencias desde WordPress: tandas cortas (recover, búsqueda, lote, envío) además del cron único de Vercel.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: RENEKAY
  * Author URI: https://renekay.com
  * Text Domain: searchagencias-monitor
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SEARCHAGENCIAS_MONITOR_VERSION', '1.0.0' );
+define( 'SEARCHAGENCIAS_MONITOR_VERSION', '1.1.0' );
 define( 'SEARCHAGENCIAS_MONITOR_FILE', __FILE__ );
 define( 'SEARCHAGENCIAS_MONITOR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SEARCHAGENCIAS_MONITOR_URL', plugin_dir_url( __FILE__ ) );

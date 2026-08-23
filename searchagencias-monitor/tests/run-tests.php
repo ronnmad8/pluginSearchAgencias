@@ -20,6 +20,7 @@ foreach (
 	array(
 		'/api/plugin-status',
 		'/api/cron-recover',
+		'/api/cron-enrich-slice',
 		'/api/cron-search-slice',
 		'/api/cron-prepare-slice',
 		'/api/cron-execute-pending',

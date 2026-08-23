@@ -12,6 +12,7 @@ class SA_Monitor_Recovery {
 		return array(
 			'plugin-status'         => '/api/plugin-status',
 			'cron-recover'          => '/api/cron-recover',
+			'cron-enrich-slice'     => '/api/cron-enrich-slice',
 			'cron-search-slice'     => '/api/cron-search-slice',
 			'cron-prepare-slice'    => '/api/cron-prepare-slice',
 			'cron-execute-pending'  => '/api/cron-execute-pending',
