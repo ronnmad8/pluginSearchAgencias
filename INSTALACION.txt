@@ -1,0 +1,41 @@
+SearchAgencias Monitor 1.0.0 — WordPress (renekay.com)
+======================================================
+
+Sí: un plugin en tu WordPress hace que SearchAgencias funcione mejor que con el
+único cron de Vercel Hobby. Es el mismo patrón que Cazaleads Monitor.
+
+Arquitectura
+------------
+  Vercel  08:00 UTC  →  GET /api/cron-morning     (kickoff diario)
+  WordPress cada 10 min → ping REST:
+      1) /api/health
+      2) /api/plugin-status  → recommended_action
+      3) una tanda corta:
+           cron-recover | cron-search-slice | cron-prepare-slice | cron-execute-pending
+
+Instalación
+-----------
+1. Sube la carpeta `searchagencias-monitor` a wp-content/plugins/ y actívala.
+   (NO actives el `cazaleads-monitor` copiado en este repo.)
+
+2. WordPress → SearchAgencias → Configuración
+   - URL health: https://searchagencias.vercel.app/api/health
+   - CRON_SECRET de la API = el de Vercel (Production)
+   - Clave ping WordPress = una clave larga (para el cron del hosting)
+
+3. Cron REAL del hosting (imprescindible; WP-Cron solo corre si hay visitas):
+
+   */10 * * * * curl -fsS "https://renekay.com/wp-json/searchagencias-monitor/v1/ping?key=CLAVE_PING"
+
+   Ajusta el dominio si el sitio no es exactamente renekay.com.
+
+4. Vercel SearchAgencias: el CRON_SECRET debe coincidir. No hace falta más crons
+   en vercel.json (Hobby solo permite 1).
+
+Qué hace cada tanda
+-------------------
+- recover: suelta leads colgados (lotes de junio sin ejecutar) al pool
+- search-slice: busca en Maps si hay pocos listos
+- prepare-slice: arma lote AM y te avisa (email/Telegram)
+- execute-pending: envía los que marcaste ✓ y cierra lotes viejos
+- watchdog: si el día no arrancó, recover + search

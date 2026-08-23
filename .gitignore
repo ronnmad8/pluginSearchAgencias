@@ -1,0 +1,5 @@
+*.zip
+cazaleads-monitor/
+cazaleads-monitor-v*.zip
+.env
+.venv/
