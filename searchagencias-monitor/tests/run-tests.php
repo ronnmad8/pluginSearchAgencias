@@ -24,6 +24,7 @@ foreach (
 		'/api/cron-search-slice',
 		'/api/cron-prepare-slice',
 		'/api/cron-execute-pending',
+		'/api/cron-followup-slice',
 		'/api/cron-watchdog',
 	) as $path
 ) {
@@ -31,6 +32,20 @@ foreach (
 		fwrite( STDERR, "Falta endpoint $path\n" );
 		exit( 1 );
 	}
+}
+
+if ( strpos( file_get_contents( $root . '/includes/class-sa-monitor-keepalive.php' ), 'const MAX_ACTIONS_PER_RUN = 1;' ) === false ) {
+	fwrite( STDERR, "Keepalive debe ser 1 acción por ping\n" );
+	exit( 1 );
+}
+if ( ! is_file( $root . '/includes/class-sa-monitor-stats.php' ) ) {
+	fwrite( STDERR, "Falta class-sa-monitor-stats.php\n" );
+	exit( 1 );
+}
+$boot = file_get_contents( $root . '/searchagencias-monitor.php' );
+if ( strpos( $boot, "add_action( 'admin_init'" ) === false ) {
+	fwrite( STDERR, "El schedule no debe ir en cada plugins_loaded de tienda\n" );
+	exit( 1 );
 }
 
 echo "OK plugin tests v{$const[1]}\n";

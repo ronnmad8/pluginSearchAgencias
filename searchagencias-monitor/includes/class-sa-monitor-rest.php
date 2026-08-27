@@ -37,6 +37,8 @@ class SA_Monitor_Rest {
 	}
 
 	public static function handle_ping( $request ) {
+		SA_Monitor_Cron::maybe_schedule();
+		SA_Monitor_Cron::maybe_schedule_keepalive();
 		$health    = SA_Monitor_Checker::run_check();
 		$keepalive = SA_Monitor_Keepalive::run();
 		$ok        = ( ! empty( $health['ok'] ) || ! empty( $health['skipped'] ) )

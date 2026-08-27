@@ -23,7 +23,7 @@ class SA_Monitor_Cron {
 			);
 		}
 		$settings = SA_Monitor_Checker::get_settings();
-		$minutes  = max( 5, min( 30, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 10 ) ) );
+		$minutes  = max( 5, min( 60, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 30 ) ) );
 		$schedules[ self::KEEPALIVE_SCHEDULE ] = array(
 			'interval' => $minutes * MINUTE_IN_SECONDS,
 			'display'  => sprintf(

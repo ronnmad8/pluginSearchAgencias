@@ -1,5 +1,4 @@
 *.zip
-cazaleads-monitor/
-cazaleads-monitor-v*.zip
+searchagencias-monitor-full/
 .env
 .venv/

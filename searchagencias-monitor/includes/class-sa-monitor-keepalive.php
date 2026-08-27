@@ -7,57 +7,82 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SA_Monitor_Keepalive {
 
 	const CRON_HOOK = 'searchagencias_monitor_keepalive';
+	const MAX_ACTIONS_PER_RUN = 1;
 
 	public static function run() {
 		$settings = SA_Monitor_Checker::get_settings();
 		if ( empty( $settings['enabled'] ) || empty( $settings['daily_keepalive_enabled'] ) ) {
-			$result = array(
-				'ok'      => true,
-				'skipped' => true,
-				'reason'  => 'keepalive_disabled',
+			return self::finish(
+				array(
+					'ok'      => true,
+					'skipped' => true,
+					'reason'  => 'keepalive_disabled',
+				)
 			);
-			SA_Monitor_Checker::record_keepalive_attempt( $result );
-			return $result;
 		}
 
-		$status = SA_Monitor_Recovery::invoke_endpoint_with_retry( $settings, 'plugin-status', array(), 2 );
-		if ( empty( $status['ok'] ) ) {
-			$watch = SA_Monitor_Recovery::invoke_endpoint_with_retry( $settings, 'cron-watchdog', array(), 2 );
-			$result = array(
-				'ok'      => ! empty( $watch['ok'] ),
-				'action'  => 'cron-watchdog',
-				'message' => 'plugin-status falló; watchdog',
-				'status'  => $status,
-				'watchdog'=> $watch,
-			);
-			SA_Monitor_Checker::record_keepalive_attempt( $result );
-			return $result;
+		$slices  = array();
+		$actions = array();
+		$status  = null;
+
+		for ( $i = 0; $i < self::MAX_ACTIONS_PER_RUN; $i++ ) {
+			$status = SA_Monitor_Recovery::invoke_endpoint_with_retry( $settings, 'plugin-status', array(), 2 );
+			if ( empty( $status['ok'] ) ) {
+				if ( $i === 0 ) {
+					$watch = SA_Monitor_Recovery::invoke_endpoint_with_retry( $settings, 'cron-watchdog', array(), 2 );
+					return self::finish(
+						array(
+							'ok'       => ! empty( $watch['ok'] ),
+							'action'   => 'cron-watchdog',
+							'message'  => 'plugin-status falló; watchdog',
+							'status'   => $status,
+							'watchdog' => $watch,
+						)
+					);
+				}
+				break;
+			}
+
+			$body   = is_array( $status['response'] ?? null ) ? $status['response'] : array();
+			$action = (string) ( $body['recommended_action'] ?? 'idle' );
+			if ( $action === '' || $action === 'idle' ) {
+				if ( $i === 0 ) {
+					return self::finish(
+						array(
+							'ok'            => true,
+							'skipped'       => true,
+							'reason'        => 'idle',
+							'action'        => 'idle',
+							'message'       => 'Sin trabajo pendiente',
+							'plugin_status' => $body,
+						)
+					);
+				}
+				break;
+			}
+			if ( in_array( $action, $actions, true ) ) {
+				break;
+			}
+
+			$slice = SA_Monitor_Recovery::invoke_endpoint_with_retry( $settings, $action, array(), 2 );
+			$actions[] = $action;
+			$slices[]  = $slice;
 		}
 
-		$body   = is_array( $status['response'] ?? null ) ? $status['response'] : array();
-		$action = (string) ( $body['recommended_action'] ?? 'idle' );
-		if ( $action === '' || $action === 'idle' ) {
-			$result = array(
-				'ok'      => true,
-				'skipped' => true,
-				'reason'  => 'idle',
-				'action'  => 'idle',
-				'message' => 'Sin trabajo pendiente',
-				'plugin_status' => $body,
-			);
-			SA_Monitor_Checker::record_keepalive_attempt( $result );
-			return $result;
-		}
-
-		$slice = SA_Monitor_Recovery::invoke_endpoint_with_retry( $settings, $action, array(), 2 );
-		$result = array(
-			'ok'            => ! empty( $slice['ok'] ) || ! empty( $slice['skipped'] ),
-			'action'        => $action,
-			'message'       => 'Tanda ' . $action,
-			'slice'         => $slice,
-			'plugin_status' => $body,
+		return self::finish(
+			array(
+				'ok'            => ! empty( $slices ),
+				'action'        => implode( ',', $actions ),
+				'message'       => 'Tandas ' . implode( ' + ', $actions ),
+				'slices'        => $slices,
+				'plugin_status' => is_array( $status['response'] ?? null ) ? $status['response'] : array(),
+			)
 		);
+	}
+
+	private static function finish( array $result ) {
 		SA_Monitor_Checker::record_keepalive_attempt( $result );
+		SA_Monitor_Stats::record_from_keepalive( $result );
 		return $result;
 	}
 }

@@ -27,7 +27,7 @@ class SA_Monitor_Checker {
 			'api_cron_secret'         => '',
 			'auto_recover_enabled'    => true,
 			'daily_keepalive_enabled' => true,
-			'daily_keepalive_interval_minutes' => 10,
+			'daily_keepalive_interval_minutes' => 30,
 		);
 	}
 
@@ -53,7 +53,7 @@ class SA_Monitor_Checker {
 			'api_cron_secret'         => sanitize_text_field( (string) ( $settings['api_cron_secret'] ?? '' ) ),
 			'auto_recover_enabled'    => ! empty( $settings['auto_recover_enabled'] ),
 			'daily_keepalive_enabled' => ! empty( $settings['daily_keepalive_enabled'] ),
-			'daily_keepalive_interval_minutes' => max( 5, min( 30, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 10 ) ) ),
+			'daily_keepalive_interval_minutes' => max( 5, min( 60, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 30 ) ) ),
 		);
 		update_option( self::OPTION_SETTINGS, $clean, false );
 		return $clean;
@@ -159,6 +159,7 @@ class SA_Monitor_Checker {
 		}
 
 		self::save_state( $state );
+		SA_Monitor_Stats::maybe_alert_stalled();
 		$history = get_option( self::OPTION_HISTORY, array() );
 		if ( ! is_array( $history ) ) {
 			$history = array();
