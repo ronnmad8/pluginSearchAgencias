@@ -52,16 +52,14 @@ class SA_Monitor_Admin {
 			wp_die( 'Forbidden' );
 		}
 		check_admin_referer( 'sa_monitor_action' );
-		$action = sanitize_key( (string) ( $_POST['sa_action'] ?? 'plugin-status' ) );
-		$settings = SA_Monitor_Checker::get_settings();
+		$action = sanitize_key( (string) ( $_POST['sa_action'] ?? 'keepalive' ) );
 		if ( $action === 'health' ) {
 			SA_Monitor_Checker::run_check();
-		} elseif ( $action === 'keepalive' ) {
-			SA_Monitor_Keepalive::run();
 		} elseif ( $action === 'refresh-status' ) {
+			SA_Monitor_Checker::run_check();
 			SA_Monitor_Stats::refresh_from_api();
 		} else {
-			SA_Monitor_Recovery::invoke_endpoint( $settings, $action );
+			SA_Monitor_Keepalive::run();
 		}
 		wp_safe_redirect( admin_url( 'admin.php?page=searchagencias-monitor&ran=' . rawurlencode( $action ) ) );
 		exit;
@@ -73,7 +71,7 @@ class SA_Monitor_Admin {
 		}
 		$settings   = SA_Monitor_Checker::get_settings();
 		$state      = SA_Monitor_Checker::get_state();
-		$history    = array_slice( SA_Monitor_Checker::keepalive_history(), 0, 15 );
+		$history    = array_slice( SA_Monitor_Checker::keepalive_history(), 0, 20 );
 		$snap       = SA_Monitor_Stats::snapshot();
 		$month      = SA_Monitor_Stats::month_rows();
 		$stalled    = SA_Monitor_Stats::is_stalled();
@@ -86,74 +84,69 @@ class SA_Monitor_Admin {
 				$alive_days++;
 			}
 		}
-		$needs = array();
-		foreach ( array( 'recover', 'enrich', 'search', 'prepare', 'execute' ) as $flag ) {
-			if ( ! empty( $snap[ 'needs_' . $flag ] ) ) {
-				$needs[] = $flag;
-			}
-		}
+		$health_ok = ! empty( $state['last_ok'] );
+		$next      = (string) ( $snap['recommended_action'] ?? '—' );
 		?>
 		<div class="wrap">
-			<h1>SearchAgencias Monitor</h1>
-			<p>El plugin solo dispara crons cortos para que SearchAgencias no se pare (Hobby = 1 cron a las 08:00 UTC). Aquí ves si el ping sigue vivo hoy y en el último mes. Keepalive cada <strong><?php echo (int) $interval; ?> min</strong>.</p>
+			<h1>SearchAgencias</h1>
+			<p>Este plugin solo <strong>ayuda a la app</strong>: busca agencias, saca emails y envía tandas cortas. No sustituye el panel de SearchAgencias.</p>
 			<?php if ( ! empty( $_GET['saved'] ) ) : ?>
 				<div class="notice notice-success"><p>Guardado.</p></div>
 			<?php endif; ?>
 			<?php if ( ! empty( $_GET['ran'] ) ) : ?>
-				<div class="notice notice-info"><p>Acción: <?php echo esc_html( (string) $_GET['ran'] ); ?></p></div>
+				<div class="notice notice-info"><p>Hecho.</p></div>
 			<?php endif; ?>
 
+			<h2>1. Salud de la conexión</h2>
+			<div class="notice <?php echo $health_ok ? 'notice-success' : 'notice-error'; ?>" style="padding:12px;">
+				<p style="margin:0;font-size:1.1em;">
+					Conexión con la app:
+					<strong><?php echo $health_ok ? 'OK' : 'FALLÓ'; ?></strong>
+					<?php echo esc_html( (string) ( $state['last_check_at'] ?? '—' ) ); ?>
+					<?php echo esc_html( (string) ( $state['last_error'] ?? '' ) ); ?>
+				</p>
+				<p class="description" style="margin:8px 0 0;">
+					Versión API: <?php echo esc_html( (string) ( $snap['version'] ?? '—' ) ); ?>
+					· snapshot <?php echo esc_html( (string) ( $snap['at'] ?? '—' ) ); ?>
+				</p>
+			</div>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'sa_monitor_action' ); ?>
+				<input type="hidden" name="action" value="sa_monitor_action">
+				<button class="button" name="sa_action" value="refresh-status">Comprobar conexión ahora</button>
+			</form>
+
+			<h2>2. Ayudar a la app (crons)</h2>
 			<div class="notice <?php echo $stalled ? 'notice-error' : 'notice-success'; ?>" style="padding:12px;">
-				<p style="font-size:1.15em;margin:0;">
+				<p style="margin:0;font-size:1.1em;">
 					Proceso:
-					<strong><?php echo $stalled ? 'PARADO o sin ping reciente' : 'VIVO'; ?></strong>
+					<strong><?php echo $stalled ? 'PARADO' : 'ANDANDO'; ?></strong>
 					<?php if ( $stalled ) : ?>
-						— el último keepalive supera ~<?php echo (int) max( 90, $interval * 2 ); ?> min. Revisa el cron del hosting.
+						— hace más de ~<?php echo (int) max( 90, $interval * 2 ); ?> min sin ping. El cron del hosting debe llamar cada <?php echo (int) $interval; ?> min.
 					<?php else : ?>
-						— pings OK en la ventana esperada.
+						— el plugin está despertando la app (cada <?php echo (int) $interval; ?> min).
 					<?php endif; ?>
 				</p>
 			</div>
-
-			<h2>Hoy</h2>
-			<table class="widefat striped" style="max-width:720px;">
+			<table class="widefat striped" style="max-width:640px;margin:12px 0;">
 				<tbody>
-					<tr><th>API SearchAgencias</th><td><?php echo esc_html( (string) ( $snap['version'] ?? '—' ) ); ?> · snapshot <?php echo esc_html( (string) ( $snap['at'] ?? '—' ) ); ?></td></tr>
+					<tr><th>Siguiente cron</th><td><code><?php echo esc_html( $next ); ?></code> <span class="description">(buscar / email / lote / envío / follow-up)</span></td></tr>
 					<tr><th>Envíos hoy</th><td><?php echo (int) ( $snap['reserved_today'] ?? ( $today['reserved'] ?? 0 ) ); ?> / <?php echo (int) ( $snap['daily_email_cap'] ?? ( $today['cap'] ?? 0 ) ); ?> (quedan <?php echo (int) ( $snap['remaining_today'] ?? 0 ); ?>)</td></tr>
-					<tr><th>Siguiente acción</th><td><code><?php echo esc_html( (string) ( $snap['recommended_action'] ?? '—' ) ); ?></code> <?php echo $needs ? ' · pendiente: ' . esc_html( implode( ', ', $needs ) ) : ''; ?></td></tr>
-					<tr><th>Morning 08:00 UTC</th><td><?php echo ! empty( $snap['morning_ran_today'] ) ? 'sí' : 'aún no / desconocido'; ?></td></tr>
-					<tr><th>Leads listos</th><td><?php echo (int) ( $snap['ready_total'] ?? 0 ); ?></td></tr>
-					<tr><th>Pings hoy</th><td><?php echo (int) ( $today['pings'] ?? 0 ); ?> (ok <?php echo (int) ( $today['ok'] ?? 0 ); ?> · fail <?php echo (int) ( $today['fail'] ?? 0 ); ?> · idle <?php echo (int) ( $today['idle'] ?? 0 ); ?>)</td></tr>
-					<tr>
-						<th>Health</th>
-						<td>
-							<strong><?php echo ! empty( $state['last_ok'] ) ? 'OK' : 'FALLÓ'; ?></strong>
-							<?php echo esc_html( (string) ( $state['last_check_at'] ?? '—' ) ); ?>
-							<?php echo esc_html( (string) ( $state['last_error'] ?? '' ) ); ?>
-						</td>
-					</tr>
+					<tr><th>Pings hoy</th><td><?php echo (int) ( $today['pings'] ?? 0 ); ?> ok · <?php echo (int) ( $today['fail'] ?? 0 ); ?> fail · <?php echo (int) ( $today['idle'] ?? 0 ); ?> sin trabajo</td></tr>
 				</tbody>
 			</table>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:12px 0;">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'sa_monitor_action' ); ?>
 				<input type="hidden" name="action" value="sa_monitor_action">
-				<button class="button button-primary" name="sa_action" value="refresh-status">Actualizar estado de la API</button>
-				<button class="button" name="sa_action" value="keepalive">Disparar un cron ahora</button>
+				<button class="button button-primary" name="sa_action" value="keepalive">Ayudar ahora (una tanda)</button>
 			</form>
+			<p class="description">El hosting debe pegar a: <code><?php echo esc_html( $ping ); ?>?key=CLAVE</code></p>
 
-			<h2>Último mes (<?php echo (int) $alive_days; ?> / 31 días con ping OK)</h2>
-			<p class="description">Cada fila es un día UTC. Sin pings = el hosting no llamó al plugin o WordPress no registró tandas.</p>
+			<h2>3. Histórico (¿sigue andando?)</h2>
+			<p class="description"><?php echo (int) $alive_days; ?> / 31 días con ping OK. Días en blanco = no hubo cron.</p>
 			<table class="widefat striped">
 				<thead>
-					<tr>
-						<th>Día</th>
-						<th>Vivo</th>
-						<th>Pings</th>
-						<th>OK</th>
-						<th>Fail</th>
-						<th>Idle</th>
-						<th>Máx. enviados / tope</th>
-					</tr>
+					<tr><th>Día</th><th>Anduvo</th><th>Pings</th><th>OK</th><th>Fail</th><th>Sin trabajo</th><th>Enviados / tope</th></tr>
 				</thead>
 				<tbody>
 				<?php foreach ( array_reverse( $month ) as $row ) : ?>
@@ -170,17 +163,17 @@ class SA_Monitor_Admin {
 				</tbody>
 			</table>
 
-			<h2>Últimos keepalive</h2>
+			<h3>Últimas tandas</h3>
 			<table class="widefat striped">
-				<thead><tr><th>UTC</th><th>OK</th><th>Acción</th><th>Mensaje</th></tr></thead>
+				<thead><tr><th>UTC</th><th>OK</th><th>Cron</th><th>Mensaje</th></tr></thead>
 				<tbody>
 				<?php if ( ! $history ) : ?>
-					<tr><td colspan="4">Sin tandas aún. Configura un cron real del hosting al ping (WP-Cron solo no basta si la web tiene poco tráfico).</td></tr>
+					<tr><td colspan="4">Aún no hay tandas. Configura el cron del hosting (WP-Cron solo corre si hay visitas).</td></tr>
 				<?php else : ?>
 					<?php foreach ( $history as $row ) : ?>
 						<tr>
 							<td><?php echo esc_html( (string) ( $row['at'] ?? '' ) ); ?></td>
-							<td><?php echo ! empty( $row['ok'] ) ? 'sí' : 'no'; ?><?php echo ! empty( $row['skipped'] ) ? ' (skip)' : ''; ?></td>
+							<td><?php echo ! empty( $row['ok'] ) ? 'sí' : 'no'; ?><?php echo ! empty( $row['skipped'] ) ? ' (idle)' : ''; ?></td>
 							<td><?php echo esc_html( (string) ( $row['action'] ?? '' ) ); ?></td>
 							<td><?php echo esc_html( (string) ( $row['message'] ?? '' ) ); ?></td>
 						</tr>
@@ -190,31 +183,31 @@ class SA_Monitor_Admin {
 			</table>
 
 			<details style="margin-top:2em;">
-				<summary><strong>Configuración y acciones manuales</strong></summary>
+				<summary><strong>Conexión (URL y claves)</strong></summary>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'sa_monitor_save' ); ?>
 				<input type="hidden" name="action" value="sa_monitor_save">
 				<table class="form-table">
 					<tr>
 						<th>Activo</th>
-						<td><label><input type="checkbox" name="enabled" value="1" <?php checked( ! empty( $settings['enabled'] ) ); ?>> Health + keepalive</label></td>
+						<td><label><input type="checkbox" name="enabled" value="1" <?php checked( ! empty( $settings['enabled'] ) ); ?>> Health + ayudar a la app</label></td>
 					</tr>
 					<tr>
 						<th>URL health</th>
 						<td><input class="regular-text" type="url" name="health_url" value="<?php echo esc_attr( $settings['health_url'] ); ?>"></td>
 					</tr>
 					<tr>
-						<th>CRON_SECRET de la API (Vercel)</th>
+						<th>CRON_SECRET de la API</th>
 						<td>
 							<input class="regular-text" type="password" name="api_cron_secret" value="<?php echo esc_attr( $settings['api_cron_secret'] ); ?>" autocomplete="off">
-							<p class="description">El mismo <code>CRON_SECRET</code> que en SearchAgencias (Vercel).</p>
+							<p class="description">El mismo que en Vercel SearchAgencias.</p>
 						</td>
 					</tr>
 					<tr>
 						<th>Clave ping WordPress</th>
 						<td>
 							<input class="regular-text" type="text" name="cron_secret" value="<?php echo esc_attr( $settings['cron_secret'] ); ?>">
-							<p class="description">Para el cron del hosting: <code><?php echo esc_html( $ping ); ?>?key=ESTA_CLAVE</code></p>
+							<p class="description"><code><?php echo esc_html( $ping ); ?>?key=ESTA_CLAVE</code></p>
 						</td>
 					</tr>
 					<tr>
@@ -222,17 +215,16 @@ class SA_Monitor_Admin {
 						<td><input class="regular-text" type="email" name="alert_email" value="<?php echo esc_attr( $settings['alert_email'] ); ?>"></td>
 					</tr>
 					<tr>
-						<th>Keepalive</th>
+						<th>Frecuencia</th>
 						<td>
 							<label><input type="checkbox" name="daily_keepalive_enabled" value="1" <?php checked( ! empty( $settings['daily_keepalive_enabled'] ) ); ?>> Activado</label>
-							&nbsp; cada
+							cada
 							<input type="number" min="5" max="60" name="daily_keepalive_interval_minutes" value="<?php echo esc_attr( (string) $settings['daily_keepalive_interval_minutes'] ); ?>" style="width:4em">
-							minutos
-							<p class="description">Por defecto 30 min. El cron del hosting debe llamar al ping con la misma frecuencia o más. Una acción por ping (suave para Hobby).</p>
+							min
 						</td>
 					</tr>
 					<tr>
-						<th>Auto watchdog si health cae</th>
+						<th>Watchdog si health cae</th>
 						<td><label><input type="checkbox" name="auto_recover_enabled" value="1" <?php checked( ! empty( $settings['auto_recover_enabled'] ) ); ?>> Sí</label></td>
 					</tr>
 					<tr>
@@ -241,28 +233,6 @@ class SA_Monitor_Admin {
 					</tr>
 				</table>
 				<?php submit_button( 'Guardar' ); ?>
-			</form>
-
-			<h3>Acciones manuales</h3>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:8px;flex-wrap:wrap;">
-				<?php wp_nonce_field( 'sa_monitor_action' ); ?>
-				<input type="hidden" name="action" value="sa_monitor_action">
-				<?php
-				foreach (
-					array(
-						'health'               => 'Probar health',
-						'keepalive'            => 'Keepalive ahora',
-						'plugin-status'        => 'plugin-status',
-						'cron-recover'         => 'Recover',
-						'cron-search-slice'    => 'Buscar',
-						'cron-prepare-slice'   => 'Preparar lote',
-						'cron-execute-pending' => 'Ejecutar envíos',
-						'cron-watchdog'        => 'Watchdog',
-					) as $value => $label
-				) :
-					?>
-					<button class="button" name="sa_action" value="<?php echo esc_attr( $value ); ?>"><?php echo esc_html( $label ); ?></button>
-				<?php endforeach; ?>
 			</form>
 			</details>
 		</div>

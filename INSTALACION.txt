@@ -1,54 +1,25 @@
-SearchAgencias Monitor 1.3.0 — WordPress (renekay.com)
+SearchAgencias Monitor 1.4.0 — WordPress (renekay.com)
 ======================================================
 
-El plugin no es la app: solo despierta SearchAgencias (Hobby = 1 cron) y
-muestra si el proceso sigue vivo durante el día y el último mes.
+Tres cosas en el admin: salud de la conexión, ayudar a la app (crons) e
+histórico de si sigue andando.
 
 Arquitectura
 ------------
-  Vercel  08:00 UTC  →  GET /api/cron-morning     (kickoff diario)
-  Hosting cada 30 min → GET .../wp-json/searchagencias-monitor/v1/ping?key=
-      1) /api/health
-      2) /api/plugin-status  → recommended_action
-      3) 1 tanda corta por ping:
-           cron-recover | cron-enrich-slice | cron-search-slice
-           | cron-prepare-slice | cron-execute-pending
-
-  Cada prepare envía ~5 emails. El tope del día se sube en SearchAgencias
-  → Campañas → Límite email / día (p. ej. 40).
-
-Qué ver en WordPress → SearchAgencias
--------------------------------------
-  - VIVO / PARADO (si el último ping es más viejo que ~2× el intervalo)
-  - Hoy: enviados / tope, siguiente acción, morning, leads listos
-  - Tabla de 31 días: pings OK vs huecos (el proceso se paró ese día)
-  - Email de alerta si el keepalive se queda mudo (horario diurno UTC)
+  Vercel  08:00 UTC  →  GET /api/cron-morning
+  Hosting cada 30 min → ping REST → health + 1 tanda que pida la app
+      buscar | email | lote | envío | follow-up
 
 Instalación
 -----------
-1. Sube la carpeta `searchagencias-monitor` a wp-content/plugins/ y actívala.
-   No actives `searchagencias-monitor-full`.
-
-2. WordPress → SearchAgencias → Configuración (al final de la página)
-   - URL health: https://searchagencias.vercel.app/api/health
-   - CRON_SECRET de la API = el de Vercel (Production)
-   - Clave ping WordPress = una clave larga (para el cron del hosting)
-   - Keepalive cada 30 minutos
-
-3. Cron REAL del hosting (imprescindible):
+1. Sube `searchagencias-monitor` a wp-content/plugins/ y actívala.
+2. SearchAgencias → Conexión: URL health, CRON_SECRET Vercel, clave ping.
+3. Cron del hosting:
 
    */30 * * * * curl -fsS "https://renekay.com/wp-json/searchagencias-monitor/v1/ping?key=CLAVE_PING"
 
-   WP-Cron solo corre si hay visitas; el cron del hosting es lo que mantiene
-   el proceso un mes.
-
-4. Vercel: el CRON_SECRET debe coincidir. No hace falta más crons en Hobby.
-
-Qué hace cada tanda
--------------------
-- recover: suelta leads colgados / envía pendientes si auto-envío
-- enrich-slice: busca email en fichas Maps con web
-- search-slice: busca en Maps si hay pocos listos
-- prepare-slice: arma un lote corto y lo envía (auto-envío)
-- execute-pending: envía pendientes de hoy y cierra lotes viejos
-- watchdog: si el día no arrancó, recover + search
+Pantalla
+---------
+1. Salud: OK/FALLÓ al health de la app
+2. Ayudar: ANDANDO/PARADO + «Ayudar ahora» (una tanda)
+3. Histórico: 31 días y últimas tandas
