@@ -1,4 +1,4 @@
-SearchAgencias Monitor 1.4.0 — WordPress (renekay.com)
+SearchAgencias Monitor 1.4.1 — WordPress (renekay.com)
 ======================================================
 
 Tres cosas en el admin: salud de la conexión, ayudar a la app (crons) e
@@ -8,7 +8,7 @@ Arquitectura
 ------------
   Vercel  08:00 UTC  →  GET /api/cron-morning
   Hosting cada 30 min → ping REST → health + 1 tanda que pida la app
-      buscar | email | lote | envío | follow-up
+      buscar | listados | email | lote | envío | follow-up
 
 Instalación
 -----------

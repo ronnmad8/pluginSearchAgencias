@@ -25,6 +25,7 @@ foreach (
 		'/api/cron-prepare-slice',
 		'/api/cron-execute-pending',
 		'/api/cron-followup-slice',
+		'/api/cron-directory-slice',
 		'/api/cron-watchdog',
 	) as $path
 ) {

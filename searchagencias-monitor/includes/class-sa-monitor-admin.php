@@ -130,7 +130,7 @@ class SA_Monitor_Admin {
 			</div>
 			<table class="widefat striped" style="max-width:640px;margin:12px 0;">
 				<tbody>
-					<tr><th>Siguiente cron</th><td><code><?php echo esc_html( $next ); ?></code> <span class="description">(buscar / email / lote / envío / follow-up)</span></td></tr>
+					<tr><th>Siguiente cron</th><td><code><?php echo esc_html( $next ); ?></code> <span class="description">(buscar / listados / email / lote / envío / follow-up)</span></td></tr>
 					<tr><th>Envíos hoy</th><td><?php echo (int) ( $snap['reserved_today'] ?? ( $today['reserved'] ?? 0 ) ); ?> / <?php echo (int) ( $snap['daily_email_cap'] ?? ( $today['cap'] ?? 0 ) ); ?> (quedan <?php echo (int) ( $snap['remaining_today'] ?? 0 ); ?>)</td></tr>
 					<tr><th>Pings hoy</th><td><?php echo (int) ( $today['pings'] ?? 0 ); ?> ok · <?php echo (int) ( $today['fail'] ?? 0 ); ?> fail · <?php echo (int) ( $today['idle'] ?? 0 ); ?> sin trabajo</td></tr>
 				</tbody>

@@ -17,6 +17,7 @@ class SA_Monitor_Recovery {
 			'cron-prepare-slice'    => '/api/cron-prepare-slice',
 			'cron-execute-pending'  => '/api/cron-execute-pending',
 			'cron-followup-slice'   => '/api/cron-followup-slice',
+			'cron-directory-slice'  => '/api/cron-directory-slice',
 			'cron-watchdog'         => '/api/cron-watchdog',
 			'cron-morning'          => '/api/cron-morning',
 			'app-logs'              => '/api/app-logs',
