@@ -14,6 +14,7 @@ class SA_Monitor_Recovery {
 			'cron-recover'          => '/api/cron-recover',
 			'cron-enrich-slice'     => '/api/cron-enrich-slice',
 			'cron-search-slice'     => '/api/cron-search-slice',
+			'cron-social-slice'     => '/api/cron-social-slice',
 			'cron-prepare-slice'    => '/api/cron-prepare-slice',
 			'cron-execute-pending'  => '/api/cron-execute-pending',
 			'cron-followup-slice'   => '/api/cron-followup-slice',
@@ -63,6 +64,7 @@ class SA_Monitor_Recovery {
 				'redirection' => 3,
 				'headers'     => array(
 					'Authorization' => 'Bearer ' . $secret,
+					'x-cron-secret' => $secret,
 					'Accept'        => 'application/json',
 					'User-Agent'    => 'SearchAgenciasMonitor/' . SEARCHAGENCIAS_MONITOR_VERSION,
 				),
