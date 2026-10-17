@@ -36,10 +36,33 @@ foreach (
 	}
 }
 
-if ( strpos( file_get_contents( $root . '/includes/class-sa-monitor-keepalive.php' ), 'const MAX_ACTIONS_PER_RUN = 1;' ) === false ) {
-	fwrite( STDERR, "Keepalive debe ser 1 acción por ping\n" );
+if ( strpos( $recovery, 'x-cron-secret' ) === false ) {
+	fwrite( STDERR, "Falta header x-cron-secret hacia la API\n" );
 	exit( 1 );
 }
+
+$keepalive = file_get_contents( $root . '/includes/class-sa-monitor-keepalive.php' );
+if ( $keepalive === false ) {
+	fwrite( STDERR, "No se lee class-sa-monitor-keepalive.php\n" );
+	exit( 1 );
+}
+if ( strpos( $keepalive, 'const MAX_ACTIONS_PER_RUN = 4;' ) === false ) {
+	fwrite( STDERR, "Keepalive debe permitir varias acciones por ping (MAX_ACTIONS_PER_RUN = 4)\n" );
+	exit( 1 );
+}
+if ( strpos( $keepalive, 'const MAX_SEND_BURST = 2;' ) === false ) {
+	fwrite( STDERR, "Keepalive debe permitir ráfaga de envío (MAX_SEND_BURST = 2)\n" );
+	exit( 1 );
+}
+if ( strpos( $keepalive, 'const MAX_SEARCH_BURST = 3;' ) === false ) {
+	fwrite( STDERR, "Keepalive debe permitir ráfaga de búsqueda (MAX_SEARCH_BURST = 3)\n" );
+	exit( 1 );
+}
+if ( strpos( $keepalive, 'const MAX_ENRICH_BURST = 2;' ) === false ) {
+	fwrite( STDERR, "Keepalive debe permitir ráfaga de enrich (MAX_ENRICH_BURST = 2)\n" );
+	exit( 1 );
+}
+
 if ( ! is_file( $root . '/includes/class-sa-monitor-stats.php' ) ) {
 	fwrite( STDERR, "Falta class-sa-monitor-stats.php\n" );
 	exit( 1 );

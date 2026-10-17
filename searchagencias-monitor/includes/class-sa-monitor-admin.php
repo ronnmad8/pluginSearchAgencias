@@ -39,7 +39,7 @@ class SA_Monitor_Admin {
 		$settings['auto_recover_enabled'] = ! empty( $posted['auto_recover_enabled'] );
 		$settings['daily_keepalive_enabled'] = ! empty( $posted['daily_keepalive_enabled'] );
 		$settings['notify_recovery'] = ! empty( $posted['notify_recovery'] );
-		$settings['daily_keepalive_interval_minutes'] = (int) ( $posted['daily_keepalive_interval_minutes'] ?? 30 );
+		$settings['daily_keepalive_interval_minutes'] = (int) ( $posted['daily_keepalive_interval_minutes'] ?? 15 );
 		SA_Monitor_Checker::save_settings( $settings );
 		SA_Monitor_Cron::maybe_schedule( true );
 		SA_Monitor_Cron::maybe_schedule_keepalive( true );
@@ -75,7 +75,7 @@ class SA_Monitor_Admin {
 		$snap       = SA_Monitor_Stats::snapshot();
 		$month      = SA_Monitor_Stats::month_rows();
 		$stalled    = SA_Monitor_Stats::is_stalled();
-		$interval   = max( 5, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 30 ) );
+		$interval   = max( 5, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 15 ) );
 		$ping       = rest_url( 'searchagencias-monitor/v1/ping' );
 		$today      = $month ? $month[ count( $month ) - 1 ] : array();
 		$alive_days = 0;
@@ -95,6 +95,19 @@ class SA_Monitor_Admin {
 			<?php endif; ?>
 			<?php if ( ! empty( $_GET['ran'] ) ) : ?>
 				<div class="notice notice-info"><p>Hecho.</p></div>
+			<?php endif; ?>
+			<?php
+			$last_ka = $history ? $history[0] : null;
+			if ( is_array( $last_ka ) && empty( $last_ka['ok'] ) && empty( $last_ka['skipped'] ) ) :
+				?>
+				<div class="notice notice-error">
+					<p>
+						<strong>Última tanda falló:</strong>
+						<?php echo esc_html( (string) ( $last_ka['message'] ?? 'error desconocido' ) ); ?>
+						— sin <code>plugin-status</code> OK la app no busca agencias.
+						Revisa <em>CRON_SECRET de la API</em> (debe coincidir con Vercel) y pulsa «Comprobar conexión ahora».
+					</p>
+				</div>
 			<?php endif; ?>
 
 			<h2>1. Salud de la conexión</h2>
@@ -132,7 +145,7 @@ class SA_Monitor_Admin {
 				<tbody>
 					<tr><th>Siguiente cron</th><td><code><?php echo esc_html( $next ); ?></code> <span class="description">(buscar / listados / email / lote / envío / follow-up)</span></td></tr>
 					<tr><th>Envíos hoy</th><td><?php echo (int) ( $snap['reserved_today'] ?? ( $today['reserved'] ?? 0 ) ); ?> / <?php echo (int) ( $snap['daily_email_cap'] ?? ( $today['cap'] ?? 0 ) ); ?> (quedan <?php echo (int) ( $snap['remaining_today'] ?? 0 ); ?>)</td></tr>
-					<tr><th>Pings hoy</th><td><?php echo (int) ( $today['pings'] ?? 0 ); ?> ok · <?php echo (int) ( $today['fail'] ?? 0 ); ?> fail · <?php echo (int) ( $today['idle'] ?? 0 ); ?> sin trabajo</td></tr>
+					<tr><th>Pings hoy</th><td><?php echo (int) ( $today['pings'] ?? 0 ); ?> pings · <?php echo (int) ( $today['ok'] ?? 0 ); ?> ok · <?php echo (int) ( $today['fail'] ?? 0 ); ?> fail · <?php echo (int) ( $today['idle'] ?? 0 ); ?> sin trabajo</td></tr>
 				</tbody>
 			</table>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -236,6 +249,72 @@ class SA_Monitor_Admin {
 			</form>
 			</details>
 		</div>
+		<style>
+			.sa-monitor-loading {
+				position: fixed; inset: 0; z-index: 100000;
+				display: none; align-items: center; justify-content: center;
+				background: rgba(15, 23, 42, 0.35);
+			}
+			.sa-monitor-loading.is-visible { display: flex; }
+			.sa-monitor-loading-box {
+				background: #fff; padding: 1.25rem 1.75rem; border-radius: 4px;
+				box-shadow: 0 8px 28px rgba(0,0,0,.18); text-align: center; min-width: 200px;
+			}
+			.sa-monitor-loading-box .spinner {
+				display: inline-block; width: 22px; height: 22px;
+				border: 3px solid #c3c4c7; border-top-color: #2271b1;
+				border-radius: 50%; animation: sa-monitor-spin .7s linear infinite;
+				vertical-align: middle; margin-right: 8px;
+			}
+			@keyframes sa-monitor-spin { to { transform: rotate(360deg); } }
+			body.sa-monitor-busy { cursor: wait; }
+			body.sa-monitor-busy .wrap { pointer-events: none; }
+		</style>
+		<div id="sa-monitor-loading" class="sa-monitor-loading" role="status" aria-live="polite" aria-busy="false" hidden>
+			<div class="sa-monitor-loading-box">
+				<span class="spinner" aria-hidden="true"></span>
+				<span class="sa-monitor-loading-msg">Cargando…</span>
+			</div>
+		</div>
+		<script>
+		(function () {
+			var overlay = document.getElementById('sa-monitor-loading');
+			var msgEl = overlay ? overlay.querySelector('.sa-monitor-loading-msg') : null;
+			function show(message) {
+				if (!overlay) return;
+				if (message && msgEl) msgEl.textContent = message;
+				overlay.hidden = false;
+				overlay.classList.add('is-visible');
+				overlay.setAttribute('aria-busy', 'true');
+				document.body.classList.add('sa-monitor-busy');
+			}
+			function hide() {
+				if (!overlay) return;
+				overlay.hidden = true;
+				overlay.classList.remove('is-visible');
+				overlay.setAttribute('aria-busy', 'false');
+				document.body.classList.remove('sa-monitor-busy');
+			}
+			document.querySelectorAll('.wrap form').forEach(function (form) {
+				form.addEventListener('submit', function (ev) {
+					var btn = ev.submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+					var label = 'Cargando…';
+					if (btn && btn.name === 'sa_action') {
+						if (btn.value === 'keepalive') label = 'Ayudando a la app…';
+						else if (btn.value === 'refresh-status' || btn.value === 'health') label = 'Comprobando conexión…';
+					} else if (form.querySelector('input[name="action"][value="sa_monitor_save"]')) {
+						label = 'Guardando…';
+					}
+					if (btn) {
+						btn.disabled = true;
+						btn.classList.add('disabled');
+					}
+					show(label);
+				});
+			});
+			window.addEventListener('pageshow', hide);
+		})();
+		</script>
 		<?php
 	}
 }

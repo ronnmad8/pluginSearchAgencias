@@ -27,7 +27,7 @@ class SA_Monitor_Checker {
 			'api_cron_secret'         => '',
 			'auto_recover_enabled'    => true,
 			'daily_keepalive_enabled' => true,
-			'daily_keepalive_interval_minutes' => 30,
+			'daily_keepalive_interval_minutes' => 15,
 		);
 	}
 
@@ -49,11 +49,11 @@ class SA_Monitor_Checker {
 			'timeout_seconds'         => max( 5, min( 60, (int) ( $settings['timeout_seconds'] ?? 20 ) ) ),
 			'cooldown_minutes'        => max( 30, min( 1440, (int) ( $settings['cooldown_minutes'] ?? 240 ) ) ),
 			'notify_recovery'         => ! empty( $settings['notify_recovery'] ),
-			'cron_secret'             => sanitize_text_field( (string) ( $settings['cron_secret'] ?? '' ) ),
-			'api_cron_secret'         => sanitize_text_field( (string) ( $settings['api_cron_secret'] ?? '' ) ),
+			'cron_secret'             => trim( (string) ( $settings['cron_secret'] ?? '' ) ),
+			'api_cron_secret'         => trim( (string) ( $settings['api_cron_secret'] ?? '' ) ),
 			'auto_recover_enabled'    => ! empty( $settings['auto_recover_enabled'] ),
 			'daily_keepalive_enabled' => ! empty( $settings['daily_keepalive_enabled'] ),
-			'daily_keepalive_interval_minutes' => max( 5, min( 60, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 30 ) ) ),
+			'daily_keepalive_interval_minutes' => max( 5, min( 60, (int) ( $settings['daily_keepalive_interval_minutes'] ?? 15 ) ) ),
 		);
 		update_option( self::OPTION_SETTINGS, $clean, false );
 		return $clean;
