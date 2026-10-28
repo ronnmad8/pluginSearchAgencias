@@ -13,6 +13,7 @@ class SA_Monitor_Recovery {
 			'plugin-status'         => '/api/plugin-status',
 			'cron-recover'          => '/api/cron-recover',
 			'cron-enrich-slice'     => '/api/cron-enrich-slice',
+			'cron-enrich-and-send'  => '/api/cron-enrich-and-send',
 			'cron-search-slice'     => '/api/cron-search-slice',
 			'cron-social-slice'     => '/api/cron-social-slice',
 			'cron-prepare-slice'    => '/api/cron-prepare-slice',

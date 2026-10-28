@@ -21,6 +21,7 @@ foreach (
 		'/api/plugin-status',
 		'/api/cron-recover',
 		'/api/cron-enrich-slice',
+		'/api/cron-enrich-and-send',
 		'/api/cron-search-slice',
 		'/api/cron-social-slice',
 		'/api/cron-prepare-slice',
